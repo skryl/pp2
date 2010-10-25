@@ -63,7 +63,7 @@ The max column width to display (hard cutoff)
 :max_width => ##
 The max number of columns to display (hard cutoff)
 :max_cols => ##
-Columns to include (those that contain any of the strings mentioned)
-:select_cols => ['','','']
-Columns to ignore (those that contain any of the strings mentioned)
-:reject_cols => ['','',''] 
+Columns to include (those that contain any of the strings/regexes mentioned)
+:select_cols => ['',//]
+Columns to ignore (those that contain any of the strings/regexes mentioned)
+:reject_cols => ['',//] 

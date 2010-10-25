@@ -33,23 +33,23 @@ class PP2
   IGNORE_COLS = ['_id', '_on', '_at']
 
   def self.pp2(obj, opts = {})
+    objs = to_a(obj)
+    max_width = nil
+
     @header = true
-    if obj.is_a? Array
-      max_width = nil
-      obj.each do |o|
+    objs.each do |o|
+      if o.class.ancestors.include?(ActiveRecord::Base)
         # Lock width of table cells to max cell width of first row for clean output
         new_opts = max_width ? opts.merge({ :min_width => max_width, :max_width => max_width}) : opts 
         status = pretty_print2(o, new_opts) 
 
         # Only lock width if no asscoations are printed in between
         max_width = status[:associations] ? nil : status[:max_width]
+      else pp o
       end
-      @header = true
-    elsif obj.class.ancestors.include?(ActiveRecord::Base)
-      pretty_print2(obj, opts)
-    else 
-      pp obj
     end
+    @header = true
+
     nil
   end
 
@@ -63,8 +63,10 @@ private
 
     # Apply filters
     fields = model_format[:fields].dup
-    fields = fields.select {|field| opts[:select_cols].any? {|ic| field[:column].include?(ic) } } if opts[:select_cols] 
-    fields = fields.reject {|field| opts[:reject_cols].any? {|ic| field[:column].include?(ic) } } if opts[:reject_cols] 
+    opts[:select_cols] = to_a(opts[:select_cols])
+    opts[:reject_cols] = to_a(opts[:reject_cols])
+    fields = fields.select {|field| opts[:select_cols].any? {|ic| field[:column].index(ic) } } unless opts[:select_cols].empty? 
+    fields = fields.reject {|field| opts[:reject_cols].any? {|ic| field[:column].index(ic) } } unless opts[:reject_cols].empty? 
     fields = fields[0...opts[:max_cols]] if opts[:max_cols]
 
     # Extract data for each column to be displayed. Also, determine the width
@@ -125,7 +127,7 @@ private
     if traverse_assocs 
       associations.each do |assoc|
         assoc_obj = obj.send(assoc[:name])
-        assoc_objs = (assoc_obj.is_a?(Array) ? assoc_obj : [assoc_obj]).compact
+        assoc_objs = to_a(assoc_obj)
         unless assoc_objs.empty?
           assoc_objs.sort! {|o1,o2| o1.send(assoc[:sort]) <=> o2.send(assoc[:sort]) }
           pp2(assoc_objs, opts.merge({ :assoc_levels => assoc_levels - 1, :indent => (opts[:indent] || 0) + 1 })) 
@@ -158,5 +160,11 @@ private
     end
     formatter
   end
+
+
+  def self.to_a(obj)
+    obj.is_a?(Array) ? obj : [obj].compact
+  end
+  
       
 end
