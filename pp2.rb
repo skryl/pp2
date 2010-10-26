@@ -29,7 +29,7 @@ class PP2
 
   # Default formatter constraints
   MAX_COLS = 10
-  MAX_WIDTH = 20
+  MAX_WIDTH = 10
   IGNORE_COLS = ['_id', '_on', '_at']
 
   def self.pp2(obj, opts = {})
@@ -53,11 +53,22 @@ class PP2
     nil
   end
 
+
+  # returns the formatter or nil depending on syntax correctness
+  def self.check_formatter_syntax(formatter)
+    formatter if formatter.is_a?(Hash) && 
+    formatter.keys.include?(:fields) &&
+    formatter[:fields].is_a?(Array) && 
+    formatter[:fields].all? { |f| f.is_a?(Hash) && f[:column] }
+  end
+
+
 private 
+
 
   #TODO: some error handling would be nice
   def self.pretty_print2(obj, opts = {})
-    model_format = build_formatter(obj, opts)
+    model_format = get_formatter(obj, opts)
     border_char, padding_char, header_sep, field_sep = '-', ' ', '-+-',  ' | '
     pad_width, max_field_width, data = 4, 0, {}
 
@@ -140,25 +151,52 @@ private
   end
 
 
-  def self.build_formatter(obj, opts = {})
+  def self.get_formatter(obj, opts = {})
     klass = obj.class
     if klass.class_variable_defined?(:@@pp2_format)
-      formatter = klass.send(:class_variable_get, :@@pp2_format) unless opts[:formatter] == :default
+      # define an accessor for the class var
+      inject_accessors(klass) unless klass.singleton_methods.include?('pp2_format')
+      formatter = check_formatter_syntax(klass.pp2_format) unless opts[:formatter] == :default
+      puts "Bad formatter detected! Please check '#{klass}' definition." unless formatter
     end
 
     # default format generator
     unless formatter
-      opts[:max_cols] ||= MAX_COLS
-      opts[:max_width] ||= MAX_WIDTH
-      opts[:ignore_cols] ||= IGNORE_COLS
-
-      column_names = klass.column_names
-      field_formats = column_names.inject([]) do |fields, cn|
-        fields.push({ :column => cn })
-      end
-      formatter = {:fields => field_formats} 
+      formatter = build_default_formatter(obj, opts)
     end
+
     formatter
+  end
+
+
+  def self.build_default_formatter(obj, opts = {})
+    klass = obj.class
+    opts[:max_cols] ||= MAX_COLS
+    opts[:max_width] ||= MAX_WIDTH
+    opts[:ignore_cols] ||= IGNORE_COLS
+
+    column_names = klass.column_names
+    field_formats = column_names.inject([]) do |fields, cn|
+      fields.push({ :column => cn })
+    end
+    {:fields => field_formats} 
+  end
+
+
+  def self.inject_accessors(klass)
+    klass.instance_eval do
+      def pp2_format
+        self.send(:class_variable_get, :@@pp2_format)
+      end
+
+      def pp2_format=(formatter)
+        if PP2.check_formatter_syntax(formatter) 
+          self.send(:class_variable_set, :@@pp2_format, formatter)
+        else
+          puts "Bad formatter, check syntax!"
+        end
+      end
+    end
   end
 
 
